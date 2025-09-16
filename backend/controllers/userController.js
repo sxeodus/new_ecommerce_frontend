@@ -1,15 +1,17 @@
 import asyncHandler from '../middleware/asyncHandler.js';
-import db from '../db.js';
+import db from '../db.js'; // Use the improved, safer db module
 import bcrypt from 'bcryptjs';
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
 // @access  Private
 const getUserProfile = asyncHandler(async (req, res) => {
-  const [users] = await db.query(
-    'SELECT id, username, email, isAdmin FROM users WHERE id = ?', // Changed from name to username
+  const isPostgres = !!process.env.DATABASE_URL;
+  const result = await db.query(
+    `SELECT id, username, email, "isAdmin" FROM users WHERE id = ${isPostgres ? '$1' : '?'}`,
     [req.user.id]
   );
+  const users = isPostgres ? result.rows : result[0];
 
   if (users.length > 0) {
     const user = users[0];
@@ -29,9 +31,11 @@ const getUserProfile = asyncHandler(async (req, res) => {
 // @route   PUT /api/users/profile
 // @access  Private
 const updateUserProfile = asyncHandler(async (req, res) => {
-  const [users] = await db.query('SELECT * FROM users WHERE id = ?', [
+  const isPostgres = !!process.env.DATABASE_URL;
+  const result = await db.query(`SELECT * FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [
     req.user.id,
   ]);
+  const users = isPostgres ? result.rows : result[0];
 
   if (users.length > 0) {
     const user = users[0];
@@ -57,15 +61,19 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     }
 
     if (updateFields.length > 0) {
-      const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
+      const setClauses = isPostgres
+        ? updateFields.map((field, i) => field.replace('?', `$${i + 1}`)).join(', ')
+        : updateFields.join(', ');
+      const sql = `UPDATE users SET ${setClauses} WHERE id = ${isPostgres ? `$${updateFields.length + 1}` : '?'}`;
       await db.query(sql, [...updateValues, req.user.id]);
     }
 
     // Fetch the latest user profile to send back in the response
-    const [updatedUsers] = await db.query(
-      'SELECT id, username, email, isAdmin FROM users WHERE id = ?',
+    const updatedResult = await db.query(
+      `SELECT id, username, email, "isAdmin" FROM users WHERE id = ${isPostgres ? '$1' : '?'}`,
       [req.user.id]
     );
+    const updatedUsers = isPostgres ? updatedResult.rows : updatedResult[0];
 
     res.status(200).json(updatedUsers[0]);
   } else {
@@ -78,9 +86,33 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/users
 // @access  Private/Admin
 const getUsers = asyncHandler(async (req, res) => {
+  const isPostgres = !!process.env.DATABASE_URL;
   // Select all users but exclude the password
-  const [users] = await db.query('SELECT id, username, email, isAdmin FROM users');
-  res.status(200).json(users);
+  const result = await db.query(`SELECT id, username, email, "isAdmin", created_at FROM users`);
+  const users = isPostgres ? result.rows : result[0];
+  res.json(users);
+});
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Private/Admin
+export const deleteUser = asyncHandler(async (req, res) => {
+  const userId = req.params.id;
+  const isPostgres = !!process.env.DATABASE_URL;
+
+  // Check if the user exists
+  const result = await db.query(`SELECT * FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
+  const user = isPostgres ? result.rows : result[0];
+
+  if (user.length > 0) {
+    // Add logic here to handle related records if necessary (e.g., re-assign orders)
+    // For now, we will just delete the user.
+    await db.query(`DELETE FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
+    res.json({ message: 'User removed successfully' });
+  } else {
+    res.status(404);
+    throw new Error('User not found');
+  }
 });
 
 export { getUserProfile, updateUserProfile, getUsers };

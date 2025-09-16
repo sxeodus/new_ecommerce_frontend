@@ -1,5 +1,5 @@
 import asyncHandler from '../middleware/asyncHandler.js';
-import db from '../db.js';
+import db from '../db.js'; // Use the improved, safer db module
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -12,23 +12,29 @@ const addOrderItems = asyncHandler(async (req, res) => {
     throw new Error('No order items');
   }
 
-  try {
-    // In a real app, you would wrap these in a transaction.
-    // For simplicity with the current db setup, we'll execute them sequentially.
-    const [orderResult] = await db.query(
-      'INSERT INTO orders (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES (?, ?, ?, ?, ?, ?)',
-      [
-        req.user.id,
-        totalPrice,
-        shippingAddress.address,
-        shippingAddress.city,
-        shippingAddress.postalCode,
-        shippingAddress.country,
-      ]
-    );
-    const orderId = orderResult.insertId;
+  const isPostgres = !!process.env.DATABASE_URL;
+  const connection = await db.getConnection(); // Works for both pg and mysql
 
-    const orderItemsData = orderItems.map((item) => [
+  try {
+    await connection.beginTransaction();
+
+    const orderQuery = isPostgres
+      ? 'INSERT INTO orders (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id'
+      : 'INSERT INTO orders (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES (?, ?, ?, ?, ?, ?)';
+
+    const orderParams = [
+      req.user.id,
+      totalPrice,
+      shippingAddress.address,
+      shippingAddress.city,
+      shippingAddress.postalCode,
+      shippingAddress.country,
+    ];
+
+    const orderResult = await connection.query(orderQuery, orderParams);
+    const orderId = isPostgres ? orderResult.rows[0].id : orderResult[0].insertId;
+
+    const orderItemsValues = orderItems.map((item) => [
       orderId,
       item.id,
       item.name,
@@ -37,18 +43,30 @@ const addOrderItems = asyncHandler(async (req, res) => {
       item.image,
     ]);
 
-    await db.query(
-      'INSERT INTO order_items (order_id, product_id, name, quantity, price, image) VALUES ?',
-      [orderItemsData]
-    );
+    // pg driver doesn't support batch insert with `?`, so we build the query string
+    if (isPostgres) {
+      for (const item of orderItemsValues) {
+        await connection.query(
+          'INSERT INTO order_items (order_id, product_id, name, quantity, price, image) VALUES ($1, $2, $3, $4, $5, $6)',
+          item
+        );
+      }
+    } else {
+      await connection.query(
+        'INSERT INTO order_items (order_id, product_id, name, quantity, price, image) VALUES ?',
+        [orderItemsValues]
+      );
+    }
     
-    const [newOrder] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    res.status(201).json(newOrder[0]);
-
+    const [newOrderResult] = isPostgres ? (await connection.query('SELECT * FROM orders WHERE id = $1', [orderId])).rows : (await connection.query('SELECT * FROM orders WHERE id = ?', [orderId]))[0];
+    await connection.commit();
+    res.status(201).json(newOrderResult);
   } catch (error) {
-    // In a real app with transactions, you would rollback here.
-    res.status(500);
-    throw new Error('Error creating order: ' + error.message);
+    await connection.rollback();
+    console.error('Error creating order:', error);
+    res.status(500).json({ message: 'Server error while creating order.' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -56,11 +74,12 @@ const addOrderItems = asyncHandler(async (req, res) => {
 // @route   GET /api/orders/:id
 // @access  Private
 const getOrderById = asyncHandler(async (req, res) => {
-    const [orders] = await db.query(
+    const isPostgres = !!process.env.DATABASE_URL;
+    const result = await db.query(
       `SELECT o.*, u.username, u.email 
        FROM orders o 
        JOIN users u ON o.user_id = u.id 
-       WHERE o.id = ?`,
+       WHERE o.id = ${isPostgres ? '$1' : '?'}`,
       [req.params.id]
     );
 
@@ -70,11 +89,11 @@ const getOrderById = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('Not authorized to view this order');
       }
-      const [orderItems] = await db.query(
-        'SELECT * FROM order_items WHERE order_id = ?',
+      const itemsResult = await db.query(
+        `SELECT * FROM order_items WHERE order_id = ${isPostgres ? '$1' : '?'}`,
         [req.params.id]
       );
-      res.json({ ...orders[0], orderItems });
+      res.json({ ...orders[0], orderItems: isPostgres ? itemsResult.rows : itemsResult[0] });
     } else {
       res.status(404);
       throw new Error('Order not found');
@@ -85,12 +104,13 @@ const getOrderById = asyncHandler(async (req, res) => {
 // @route   PUT /api/orders/:id/pay
 // @access  Private
 const updateOrderToPaid = asyncHandler(async (req, res) => {
-    const [orders] = await db.query('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+    const isPostgres = !!process.env.DATABASE_URL;
+    const { rows: orders } = await db.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [req.params.id]);
 
     if (orders.length > 0) {
       // In a real app, you'd verify payment here
       await db.query(
-        'UPDATE orders SET is_paid = 1, paid_at = NOW(), payment_method = ? WHERE id = ?',
+        `UPDATE orders SET is_paid = 1, paid_at = NOW(), payment_method = ${isPostgres ? '$1' : '?'} WHERE id = ${isPostgres ? '$2' : '?'}`,
         ['MockGateway', req.params.id]
       );
       res.json({ message: 'Order paid successfully' });
@@ -104,11 +124,12 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
 // @route   GET /api/orders/myorders
 // @access  Private
 const getMyOrders = asyncHandler(async (req, res) => {
-    const [orders] = await db.query(
-      'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
+    const isPostgres = !!process.env.DATABASE_URL;
+    const { rows: orders } = await db.query(
+      `SELECT * FROM orders WHERE user_id = ${isPostgres ? '$1' : '?'} ORDER BY created_at DESC`,
       [req.user.id]
     );
-    res.json(orders);
+    res.json(isPostgres ? orders : orders[0]);
 });
 
 // --- ADMIN CONTROLLERS ---
@@ -117,21 +138,23 @@ const getMyOrders = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/orders
 // @access  Private/Admin
 const getOrders = asyncHandler(async (req, res) => {
-    const [orders] = await db.query(`
+    const isPostgres = !!process.env.DATABASE_URL;
+    const { rows: orders } = await db.query(`
       SELECT o.*, u.username 
       FROM orders o 
       JOIN users u ON o.user_id = u.id
       ORDER BY o.created_at DESC
     `);
-    res.json(orders);
+    res.json(isPostgres ? orders : orders[0]);
 });
 
 // @desc    Update order to delivered (Admin)
 // @route   PUT /api/admin/orders/:id/deliver
 // @access  Private/Admin
 const updateOrderToDelivered = asyncHandler(async (req, res) => {
+    const isPostgres = !!process.env.DATABASE_URL;
     await db.query(
-      'UPDATE orders SET is_delivered = 1, delivered_at = NOW() WHERE id = ?',
+      `UPDATE orders SET is_delivered = 1, delivered_at = NOW() WHERE id = ${isPostgres ? '$1' : '?'}`,
       [req.params.id]
     );
     res.json({ message: 'Order marked as delivered' });
