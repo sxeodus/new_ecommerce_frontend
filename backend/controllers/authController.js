@@ -10,10 +10,13 @@ const loginUser = asyncHandler(async (req, res) => {
   // 1. Get email and password from the request body.
   const { email, password } = req.body;
 
+  const isPostgres = !!process.env.DATABASE_URL;
+
   // 2. Find a user in the database with the matching email.
-  const [users] = await db.query('SELECT * FROM users WHERE email = ?', [
+  const result = await db.query(`SELECT * FROM users WHERE email = ${isPostgres ? '$1' : '?'}`, [
     email,
   ]);
+  const users = isPostgres ? result.rows : result[0];
 
   // 3. Check if a user was found AND if the provided password matches the hashed password in the DB.
   if (users.length > 0 && (await bcrypt.compare(password, users[0].password))) {
@@ -54,12 +57,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
   try {
     // 4. Insert the new user into the database.
-    const [result] = await db.query(
-      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
+    const query = isPostgres
+      ? 'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id'
+      : 'INSERT INTO users (username, email, password) VALUES (?, ?, ?)';
+    const result = await db.query(
+      query,
       [username, email, hashedPassword]
     );
-
-    const newUserId = result.insertId;
+    const newUserId = isPostgres ? result.rows[0].id : result[0].insertId;
 
     // 5. Generate a token for the new user to log them in automatically.
     generateToken(res, newUserId);
@@ -73,7 +78,7 @@ const registerUser = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     // 7. If the database insert fails because the user already exists, send a 400 Bad Request.
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') { // 23505 is PostgreSQL's duplicate key error
       res.status(400);
       throw new Error('User already exists');
     }
