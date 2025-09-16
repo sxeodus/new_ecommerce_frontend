@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 export const useProductStore = create((set) => ({
   products: [],
   featuredProducts: [],
@@ -15,7 +17,7 @@ export const useProductStore = create((set) => ({
     set({ loading: true });
     try {
       const params = new URLSearchParams({ pageNumber, keyword, category });
-      const response = await fetch(`/api/products?${params.toString()}`);
+      const response = await fetch(`${API_URL}/api/products?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch products');
       const data = await response.json();
       set({ products: data.products, page: data.page, pages: data.pages, loading: false });
@@ -28,7 +30,7 @@ export const useProductStore = create((set) => ({
   fetchFeaturedProducts: async () => {
     set({ loading: true });
     try {
-      const response = await fetch('/api/products/top');
+      const response = await fetch(`${API_URL}/api/products/top`);
       if (!response.ok) throw new Error('Failed to fetch featured products');
       const data = await response.json();
       set({ featuredProducts: data, loading: false });
@@ -40,7 +42,7 @@ export const useProductStore = create((set) => ({
 
   fetchCategories: async () => {
     try {
-      const response = await fetch('/api/products/categories');
+      const response = await fetch(`${API_URL}/api/products/categories`);
       if (!response.ok) throw new Error('Failed to fetch categories');
       const data = await response.json();
       set({ categories: data });
@@ -52,7 +54,7 @@ export const useProductStore = create((set) => ({
   fetchProductById: async (id) => {
     set({ loading: true });
     try {
-      const response = await fetch(`/api/products/${id}`);
+      const response = await fetch(`${API_URL}/api/products/${id}`);
       if (!response.ok) throw new Error('Product not found');
       const data = await response.json();
       set({ loading: false });
@@ -68,7 +70,7 @@ export const useProductStore = create((set) => ({
     const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      const response = await fetch('/api/products', {
+      const response = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +97,7 @@ export const useProductStore = create((set) => ({
     const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      const response = await fetch(`/api/products/${id}`, {
+      const response = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +124,7 @@ export const useProductStore = create((set) => ({
     const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      const response = await fetch(`/api/products/${id}`, {
+      const response = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
