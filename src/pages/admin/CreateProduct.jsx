@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { useProductStore } from '../../stores/productStore'
 import toast from 'react-hot-toast'
-import api from '../../api/axios'
 
 function CreateProduct() {
   const navigate = useNavigate()
@@ -25,8 +24,13 @@ function CreateProduct() {
     setUploading(true)
 
     try {
-      const res = await api.post('/upload', formData)
-      setValue('image', res.data.image) // Set the form value to the returned image path
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Upload failed')
+      setValue('image', data.image) // Set the form value to the returned image path
       toast.success('Image uploaded successfully')
     } catch (error) {
       toast.error(error.message || 'Image upload failed')

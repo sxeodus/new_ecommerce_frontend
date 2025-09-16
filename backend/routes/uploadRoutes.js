@@ -1,3 +1,4 @@
+import path from 'path';
 import express from 'express';
 import upload from '../middleware/uploadMiddleware.js';
 

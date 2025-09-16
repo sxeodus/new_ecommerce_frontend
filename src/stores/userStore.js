@@ -1,42 +1,55 @@
 import { create } from 'zustand';
+import { useAuthStore } from './authStore';
 import toast from 'react-hot-toast';
-import api from '../api/axios';
 
 export const useUserStore = create((set) => ({
   users: [],
-  loading: false,
+  loading: true,
   error: null,
 
   fetchUsers: async () => {
-    set({ loading: true });
+    const { token } = useAuthStore.getState();
+    set({ loading: true, error: null });
     try {
-      const res = await api.get('/admin/users');
-      const data = res.data;
-      set({ users: data, loading: false });
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch users.');
+      const users = await response.json();
+      set({ users, loading: false });
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not fetch users';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      set({ error: error.message, loading: false });
+      toast.error(error.message);
     }
   },
 
   deleteUser: async (userId) => {
+    const { token } = useAuthStore.getState();
     if (!window.confirm('Are you sure you want to delete this user?')) {
       return;
     }
 
-    set({ loading: true });
     try {
-      await api.delete(`/admin/users/${userId}`);
-      toast.success('User deleted successfully');
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete user.');
+      }
+
       set((state) => ({
         users: state.users.filter((u) => u.id !== userId),
-        loading: false,
       }));
+      toast.success('User deleted successfully!');
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not delete user';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
     }
   },
 }));

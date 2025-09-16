@@ -1,4 +1,6 @@
 import pool from './db.js';
+import db from './db.js'; // Use the improved, safer db module
+import colors from 'colors';
 
 const categories = [
   'Electronics',
@@ -25,20 +27,19 @@ const sampleProducts = Array.from({ length: 100 }, (_, i) => {
 });
 
 const importData = async () => {
-  const connection = await pool.getConnection();
   try {
-    console.log('Starting data import...');
+    console.log('Starting data import...'.yellow.bold);
 
     // Clear existing data
-    console.log('Clearing existing products and order items...');
+    console.log('Clearing existing products and order items...'.cyan);
     // We need to delete from order_items first due to foreign key constraints
-    await connection.query('DELETE FROM order_items');
-    await connection.query('DELETE FROM products');
-    console.log('Existing data cleared.');
+    await db.query('DELETE FROM order_items');
+    await db.query('DELETE FROM products');
+    console.log('Existing data cleared.'.green);
 
     // Insert new products
-    console.log('Inserting 100 sample products...');
-    const productValues = sampleProducts.map(p => [
+    console.log('Inserting 100 sample products...'.cyan);
+    const productValues = sampleProducts.map((p) => [
       p.name,
       p.image,
       p.description,
@@ -48,35 +49,31 @@ const importData = async () => {
       p.count_in_stock,
     ]);
 
-    const sql = 'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ?';
-    await connection.query(sql, [productValues]);
+    const sql =
+      'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ?';
+    await db.query(sql, [productValues]);
 
-    console.log('Data Imported Successfully!');
+    console.log('Data Imported Successfully!'.green.bold);
     process.exit();
   } catch (error) {
-    console.error(`Error during data import: ${error}`);
+    console.error(`Error during data import: ${error}`.red.inverse);
     process.exit(1);
-  } finally {
-    connection.release();
   }
 };
 
 const destroyData = async () => {
-  const connection = await pool.getConnection();
   try {
-    console.log('Starting data destruction...');
+    console.log('Starting data destruction...'.red.bold);
 
     // Clear existing data
-    console.log('Clearing existing products and order items...');
-    await connection.query('DELETE FROM order_items');
-    await connection.query('DELETE FROM products');
-    console.log('Data Destroyed Successfully!');
+    console.log('Clearing existing products and order items...'.cyan);
+    await db.query('DELETE FROM order_items');
+    await db.query('DELETE FROM products');
+    console.log('Data Destroyed Successfully!'.green.bold);
     process.exit();
   } catch (error) {
-    console.error(`Error during data destruction: ${error}`);
+    console.error(`Error during data destruction: ${error}`.red.inverse);
     process.exit(1);
-  } finally {
-    connection.release();
   }
 };
 

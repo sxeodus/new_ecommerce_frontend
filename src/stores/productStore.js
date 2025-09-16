@@ -1,111 +1,140 @@
 import { create } from 'zustand';
+import { useAuthStore } from './authStore';
 import toast from 'react-hot-toast';
-import api from '../api/axios';
 
 export const useProductStore = create((set) => ({
   products: [],
-  product: null, // Add product to state for detail page
+  featuredProducts: [],
   page: 1,
   pages: 1,
   categories: [],
   loading: false,
   error: null,
 
-  fetchProducts: async ({ pageNumber = 1, keyword = '', category = '' } = {}) =>
-  {
+  fetchProducts: async ({ pageNumber = 1, keyword = '', category = '' } = {}) => {
     set({ loading: true });
     try {
       const params = new URLSearchParams({ pageNumber, keyword, category });
-      const res = await api.get(`/products?${params.toString()}`);
-      const data = res.data;
-      set({
-        products: data.products,
-        page: data.page,
-        pages: data.pages,
-        loading: false,
-      });
+      const response = await fetch(`/api/products?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch products');
+      const data = await response.json();
+      set({ products: data.products, page: data.page, pages: data.pages, loading: false });
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not fetch products';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  fetchFeaturedProducts: async () => {
+    set({ loading: true });
+    try {
+      const response = await fetch('/api/products/top');
+      if (!response.ok) throw new Error('Failed to fetch featured products');
+      const data = await response.json();
+      set({ featuredProducts: data, loading: false });
+    } catch (error) {
+      toast.error(error.message);
+      set({ error: error.message, loading: false });
     }
   },
 
   fetchCategories: async () => {
-    set({ loading: true });
     try {
-      const res = await api.get('/products/categories');
-      const data = res.data;
-      set({ categories: data, loading: false });
+      const response = await fetch('/api/products/categories');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      const data = await response.json();
+      set({ categories: data });
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not fetch categories';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
     }
   },
 
   fetchProductById: async (id) => {
-    set({ loading: true, product: null });
+    set({ loading: true });
     try {
-      const res = await api.get(`/products/${id}`);
-      const data = res.data;
-      set({ product: data, loading: false });
+      const response = await fetch(`/api/products/${id}`);
+      if (!response.ok) throw new Error('Product not found');
+      const data = await response.json();
+      set({ loading: false });
+      return data;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not fetch product';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
+      set({ error: error.message, loading: false });
+      return null;
     }
   },
 
   createProduct: async (productData) => {
+    const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      const res = await api.post('/admin/products', productData);
-      const newProduct = res.data;
-      toast.success('Product created successfully!');
-      set({ loading: false });
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(productData),
+      });
+      if (!response.ok) throw new Error('Failed to create product');
+      const newProduct = await response.json();
+      set((state) => ({
+        products: [newProduct, ...state.products],
+        loading: false,
+      }));
+      toast.success('Product created successfully');
       return newProduct;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not create product';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
+      set({ loading: false, error: error.message });
       return null;
     }
   },
 
   updateProduct: async (id, productData) => {
+    const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      const res = await api.put(`/api/admin/products/${id}`, productData);
-      const updatedProduct = res.data;
-      toast.success('Product updated successfully!');
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(productData),
+      });
+      if (!response.ok) throw new Error('Failed to update product');
+      const updatedProduct = await response.json();
       set((state) => ({
         products: state.products.map((p) => (p.id === id ? updatedProduct : p)),
-        product: state.product?.id === id ? updatedProduct : state.product,
         loading: false,
       }));
+      toast.success('Product updated successfully');
       return updatedProduct;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not update product';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
+      set({ loading: false, error: error.message });
       return null;
     }
   },
 
   deleteProduct: async (id) => {
+    const { token } = useAuthStore.getState();
     set({ loading: true });
     try {
-      await api.delete(`/api/admin/products/${id}`);
-      toast.success('Product deleted successfully!');
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to delete product');
       set((state) => ({
         products: state.products.filter((p) => p.id !== id),
         loading: false,
       }));
+      toast.success('Product deleted successfully');
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Could not delete product';
-      set({ error: errorMessage, loading: false });
-      toast.error(errorMessage);
+      toast.error(error.message);
+      set({ loading: false, error: error.message });
     }
   },
 }));

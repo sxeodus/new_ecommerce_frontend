@@ -56,9 +56,9 @@ function App() {
             </Route>
           </Routes>
         </main>
-        <footer className="bg-gray-200 p-4 text-center text-gray-600">
+        <div className="bg-gray-200 p-4 text-center text-gray-600">
           &copy; {new Date().getFullYear()} E-Store. All rights reserved.
-        </footer>
+        </div>
       </div>
     </Router>
   )

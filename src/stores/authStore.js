@@ -1,108 +1,127 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { useCartStore } from './cartStore';
 import toast from 'react-hot-toast';
-import api from '../api/axios';
-
-// Helper function to get user from localStorage
-const getUserFromStorage = () => {
-  try {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
-  } catch (error) {
-    console.error('Failed to parse user from localStorage', error);
-    return null;
-  }
-};
-
-const initialState = {
-  user: getUserFromStorage(),
-  loading: false,
-  error: null,
-};
 
 export const useAuthStore = create(
-  (set) => ({
-    ...initialState,
+  persist(
+    (set) => ({
+      user: null,
+      loading: false,
+      error: null,
+      setUser: (user) => set({ user }),
 
-    login: async (email, password) => {
-      set({ loading: true, error: null });
-      try {
-        // The backend expects an object with email and password
-        const res = await api.post('/auth/login', {
-          email,
-          password,
-        });
-        const data = res.data;
+      login: async (email, password) => {
+        set({ loading: true, error: null });
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.message || 'Failed to login');
+          }
+          // The `data` object from the API *is* the user object.
+          // The token is handled by an http-only cookie and is not in the response body.
+          set({ user: data, loading: false });
+          toast.success('Logged in successfully!');
+          return data; // Return the user object
+        } catch (error) {
+          set({ error: error.message, loading: false });
+          toast.error(error.message);
+          return null; // Return null on failure
+        }
+      },
 
-        localStorage.setItem('user', JSON.stringify(data));
-        set({ user: data, loading: false });
-        toast.success('Logged in successfully!');
-      } catch (error) {
-        const errorMessage = error.response?.data?.message || 'Login failed';
-        set({ error: errorMessage, loading: false });
-        toast.error(errorMessage);
-      }
-    },
+      register: async (userData) => {
+        set({ loading: true, error: null });
+        try {
+          const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.message || 'Failed to register');
+          }
+          // After successful registration, the backend sends back the user data
+          // and an http-only cookie for authentication. We can log the user in.
+          set({ user: data, loading: false });
+          toast.success('Registered and logged in successfully!');
+          return data; // Return the user object, consistent with login
+        } catch (error) {
+          set({ error: error.message, loading: false });
+          toast.error(error.message);
+          return null; // Return null on failure, consistent with login
+        }
+      },
 
-    register: async (userData) => {
-      set({ loading: true, error: null });
-      try {
-        // The backend expects an object with username, email, and password
-        const res = await api.post('/auth/register', userData);
-        const data = res.data;
+      logout: async () => {
+        set({ loading: true, error: null });
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+          });
+          // Reset the cart state by calling the action from the cart store.
+          // This ensures that when a user logs out, their cart is also cleared.
+          useCartStore.getState().clearCart();
 
-        localStorage.setItem('user', JSON.stringify(data));
-        set({ user: data, loading: false });
-        toast.success('Registered successfully!');
-      } catch (error) {
-        const errorMessage = error.response?.data?.message || 'Registration failed';
-        set({ error: errorMessage, loading: false });
-        toast.error(errorMessage);
-      }
-    },
+          set({ user: null, loading: false });
+          toast.success('Logged out successfully!');
+        } catch (error) {
+          set({ error: error.message, loading: false });
+          toast.error(error.message || 'Failed to log out');
+        }
+      },
 
-    logout: async () => {
-      try {
-        await api.post('/auth/logout');
-        localStorage.removeItem('user');
-        // Also clear cart from localStorage on logout
-        localStorage.removeItem('cart');
-        // Reset the entire auth store to its initial state
-        set(initialState);
-        toast.success('Logged out successfully');
-      } catch (error) {
-        // Even if logout fails on the server, we clear the client-side
-        console.error('Logout failed', error);
-        toast.error(error.response?.data?.message || 'Logout failed');
-      }
-    },
+      fetchUserProfile: async () => {
+        set({ loading: true, error: null });
+        try {
+          const res = await fetch('/api/users/profile');
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.message || 'Failed to fetch profile');
+          }
+          // Update the user state with the fetched profile data
+          set((state) => ({ user: { ...state.user, ...data }, loading: false }));
+          return data;
+        } catch (error) {
+          set({ error: error.message, loading: false });
+          toast.error(error.message);
+          return null;
+        }
+      },
 
-    fetchUserProfile: async () => {
-      set({ loading: true });
-      try {
-        const res = await api.get('/users/profile');
-        const data = res.data;
-        set({ user: data, loading: false });
-      } catch (error) {
-        set({ error: error.message, loading: false });
-      }
-    },
-
-    updateUserProfile: async (profileData) => {
-      set({ loading: true });
-      try {
-        const res = await api.put('/users/profile', profileData);
-        const data = res.data;
-
-        localStorage.setItem('user', JSON.stringify(data));
-        set({ user: data, loading: false });
-        toast.success('Profile updated successfully!');
-        return true;
-      } catch (error) {
-        const errorMessage = error.response?.data?.message || 'Update failed';
-        set({ error: errorMessage, loading: false });
-        toast.error(errorMessage);
-        return false;
-      }
-    },
-  })
+      updateUserProfile: async (userData) => {
+        set({ loading: true, error: null });
+        try {
+          const res = await fetch('/api/users/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.message || 'Failed to update profile');
+          }
+          // Update the user in the store with the new data from the backend
+          set({ user: data, loading: false });
+          return data;
+        } catch (error) {
+          set({ error: error.message, loading: false });
+          toast.error(error.message);
+          return null;
+        }
+      },
+    }),
+    {
+      name: 'auth-storage',
+      // Only persist the 'user' part of the state. This prevents saving
+      // 'loading' or 'error' states to localStorage.
+      partialize: (state) => ({ user: state.user }),
+    }
+  )
 );
