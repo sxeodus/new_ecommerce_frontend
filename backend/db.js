@@ -7,6 +7,7 @@ import colors from 'colors';
 dotenv.config();
 
 let pool;
+let dbType = 'mysql'; // Default to mysql
 
 // Self-executing async function to create and check the pool on startup
 (async () => {
@@ -19,6 +20,7 @@ let pool;
           rejectUnauthorized: false, // Required for Render's free tier
         },
       });
+      dbType = 'postgres';
       await pool.query('SELECT NOW()'); // Test connection
       console.log('PostgreSQL Database connected successfully'.blue.underline);
     } catch (error) {
@@ -64,10 +66,18 @@ export default {
     return pool.query.bind(pool);
   },
   get getConnection() {
-    if (!pool || !pool.getConnection) {
-      // For pg, we don't use getConnection in the same way, but this is for compatibility
-      return () => pool.connect();
+    if (!pool) {
+      console.error('FATAL: Database pool is not available. Exiting.'.red.bold);
+      process.exit(1);
     }
-    return pool.getConnection.bind(pool);
+    // For pg, pool.connect() is the equivalent of mysql's pool.getConnection()
+    // For mysql, it's pool.getConnection()
+    return dbType === 'postgres'
+      ? pool.connect.bind(pool)
+      : pool.getConnection.bind(pool);
   },
+  // Expose the pool directly for transaction control in pg
+  get pool() {
+    return pool;
+  }
 };
