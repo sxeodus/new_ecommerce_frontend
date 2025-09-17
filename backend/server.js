@@ -15,13 +15,12 @@ const app = express();
 
 // Body parser middleware
 app.use(express.json());
-const corsOptions = {
-  origin: 'https://aquamarine-semolina-c29217.netlify.app',
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Cookie parser middleware
