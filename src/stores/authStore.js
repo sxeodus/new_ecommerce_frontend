@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import { useCartStore } from './cartStore';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 export const useAuthStore = create(
   persist(
     (set) => ({
@@ -14,7 +16,7 @@ export const useAuthStore = create(
       login: async (email, password) => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch('/api/auth/login', {
+          const res = await fetch(`${API_URL}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
@@ -38,7 +40,7 @@ export const useAuthStore = create(
       register: async (userData) => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch('/api/auth/register', {
+          const res = await fetch(`${API_URL}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
@@ -62,7 +64,7 @@ export const useAuthStore = create(
       logout: async () => {
         set({ loading: true, error: null });
         try {
-          await fetch('/api/auth/logout', {
+          await fetch(`${API_URL}/api/auth/logout`, {
             method: 'POST',
           });
           // Reset the cart state by calling the action from the cart store.
@@ -80,7 +82,7 @@ export const useAuthStore = create(
       fetchUserProfile: async () => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch('/api/users/profile');
+          const res = await fetch(`${API_URL}/api/users/profile`);
           const data = await res.json();
           if (!res.ok) {
             throw new Error(data.message || 'Failed to fetch profile');
@@ -98,7 +100,7 @@ export const useAuthStore = create(
       updateUserProfile: async (userData) => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch('/api/users/profile', {
+          const res = await fetch(`${API_URL}/api/users/profile`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),

@@ -11,14 +11,17 @@ const protect = asyncHandler(async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const isPostgres = !!process.env.DATABASE_URL;
 
-      const [rows] = await db.query(
-        'SELECT id, username, email, isAdmin FROM users WHERE id = ?',
+      const result = await db.query(
+        `SELECT id, username, email, "isAdmin" FROM users WHERE id = ${isPostgres ? '$1' : '?'}`,
         [decoded.userId]
       );
 
-      if (rows.length > 0) {
-        req.user = rows[0];
+      const user = isPostgres ? result.rows[0] : result[0][0];
+
+      if (user) {
+        req.user = user;
         next();
       } else {
         res.status(401);
