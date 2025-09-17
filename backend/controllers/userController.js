@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 const getUserProfile = asyncHandler(async (req, res) => {
   const isPostgres = !!process.env.DATABASE_URL;
   const result = await db.query(
-    `SELECT id, username, email, "isAdmin" FROM users WHERE id = ${isPostgres ? '$1' : '?'}`,
+    `SELECT id, username, email, "isAdmin" FROM "users" WHERE id = ${isPostgres ? '$1' : '?'}`,
     [req.user.id]
   );
   const users = isPostgres ? result.rows : result[0];
@@ -32,7 +32,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
 // @access  Private
 const updateUserProfile = asyncHandler(async (req, res) => {
   const isPostgres = !!process.env.DATABASE_URL;
-  const result = await db.query(`SELECT * FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [
+  const result = await db.query(`SELECT * FROM "users" WHERE id = ${isPostgres ? '$1' : '?'}`, [
     req.user.id,
   ]);
   const users = isPostgres ? result.rows : result[0];
@@ -60,13 +60,13 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     }
 
     if (updateFields.length > 0) {
-      const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ${isPostgres ? `$${updateFields.length + 1}` : '?'}`;
+      const sql = `UPDATE "users" SET ${updateFields.join(', ')} WHERE id = ${isPostgres ? `$${updateFields.length + 1}` : '?'}`;
       await db.query(sql, [...updateValues, req.user.id]);
     }
 
     // Fetch the latest user profile to send back in the response
     const updatedResult = await db.query(
-      `SELECT id, username, email, "isAdmin" FROM users WHERE id = ${isPostgres ? '$1' : '?'}`,
+      `SELECT id, username, email, "isAdmin" FROM "users" WHERE id = ${isPostgres ? '$1' : '?'}`,
       [req.user.id]
     );
     const updatedUsers = isPostgres ? updatedResult.rows : updatedResult[0];
@@ -84,7 +84,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 const getUsers = asyncHandler(async (req, res) => {
   const isPostgres = !!process.env.DATABASE_URL;
   // Select all users but exclude the password
-  const result = await db.query(`SELECT id, username, email, "isAdmin", created_at FROM users`);
+  const result = await db.query(`SELECT id, username, email, "isAdmin", created_at FROM "users"`);
   const users = isPostgres ? result.rows : result[0];
   res.json(users);
 });
@@ -97,13 +97,13 @@ export const deleteUser = asyncHandler(async (req, res) => {
   const isPostgres = !!process.env.DATABASE_URL;
 
   // Check if the user exists
-  const result = await db.query(`SELECT * FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
+  const result = await db.query(`SELECT * FROM "users" WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
   const users = isPostgres ? result.rows : result[0];
 
   if (users.length > 0) {
     // Add logic here to handle related records if necessary (e.g., re-assign orders)
     // For now, we will just delete the user.
-    await db.query(`DELETE FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
+    await db.query(`DELETE FROM "users" WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
     res.json({ message: 'User removed successfully' });
   } else {
     res.status(404);

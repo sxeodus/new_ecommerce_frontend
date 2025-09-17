@@ -13,7 +13,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const isPostgres = !!process.env.DATABASE_URL;
 
   // 2. Find a user in the database with the matching email.
-  const result = await db.query(`SELECT * FROM users WHERE email = ${isPostgres ? '$1' : '?'}`, [
+  const result = await db.query(`SELECT * FROM "users" WHERE email = ${isPostgres ? '$1' : '?'}`, [
     email,
   ]);
   const users = isPostgres ? result.rows : result[0];
@@ -60,8 +60,8 @@ const registerUser = asyncHandler(async (req, res) => {
   try {
     // 4. Insert the new user into the database.
     const query = isPostgres
-      ? 'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id'
-      : 'INSERT INTO users (username, email, password) VALUES (?, ?, ?)';
+      ? 'INSERT INTO "users" (username, email, password) VALUES ($1, $2, $3) RETURNING id'
+      : 'INSERT INTO "users" (username, email, password) VALUES (?, ?, ?)';
     const result = await db.query(
       query,
       [username, email, hashedPassword]

@@ -19,8 +19,8 @@ const addOrderItems = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     const orderQuery = isPostgres
-      ? 'INSERT INTO orders (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id'
-      : 'INSERT INTO orders (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES (?, ?, ?, ?, ?, ?)';
+      ? 'INSERT INTO "orders" (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id'
+      : 'INSERT INTO "orders" (user_id, total_price, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES (?, ?, ?, ?, ?, ?)';
 
     const orderParams = [
       req.user.id,
@@ -47,18 +47,18 @@ const addOrderItems = asyncHandler(async (req, res) => {
     if (isPostgres) {
       for (const item of orderItemsValues) {
         await connection.query(
-          'INSERT INTO order_items (order_id, product_id, name, quantity, price, image) VALUES ($1, $2, $3, $4, $5, $6)',
+          'INSERT INTO "order_items" (order_id, product_id, name, quantity, price, image) VALUES ($1, $2, $3, $4, $5, $6)',
           item
         );
       }
     } else {
       await connection.query(
-        'INSERT INTO order_items (order_id, product_id, name, quantity, price, image) VALUES ?',
+        'INSERT INTO "order_items" (order_id, product_id, name, quantity, price, image) VALUES ?',
         [orderItemsValues]
       );
     }
     
-    const newOrderResult = await connection.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [orderId]);
+    const newOrderResult = await connection.query(`SELECT * FROM "orders" WHERE id = ${isPostgres ? '$1' : '?'}`, [orderId]);
     const createdOrder = isPostgres ? newOrderResult.rows[0] : newOrderResult[0][0];
 
     await connection.commit();
@@ -78,9 +78,9 @@ const addOrderItems = asyncHandler(async (req, res) => {
 const getOrderById = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
     const result = await db.query(
-      `SELECT o.*, u.username, u.email 
-       FROM orders o 
-       JOIN users u ON o.user_id = u.id 
+      `SELECT o.*, u.username, u.email
+       FROM "orders" o
+       JOIN "users" u ON o.user_id = u.id
        WHERE o.id = ${isPostgres ? '$1' : '?'}`,
       [req.params.id]
     );
@@ -94,7 +94,7 @@ const getOrderById = asyncHandler(async (req, res) => {
         throw new Error('Not authorized to view this order');
       }
       const itemsResult = await db.query( // This was correct, just formatting
-        `SELECT * FROM order_items WHERE order_id = ${isPostgres ? '$1' : '?'}`,
+        `SELECT * FROM "order_items" WHERE order_id = ${isPostgres ? '$1' : '?'}`,
         [req.params.id]
       );
       res.json({ ...orders[0], orderItems: isPostgres ? itemsResult.rows : itemsResult[0]});
@@ -109,13 +109,13 @@ const getOrderById = asyncHandler(async (req, res) => {
 // @access  Private
 const updateOrderToPaid = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
-    const result = await db.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [req.params.id]);
+    const result = await db.query(`SELECT * FROM "orders" WHERE id = ${isPostgres ? '$1' : '?'}`, [req.params.id]);
     const orders = isPostgres ? result.rows : result[0];
 
     if (orders.length > 0) {
       // In a real app, you'd verify payment here
       await db.query(
-        `UPDATE orders SET is_paid = true, paid_at = NOW(), payment_method = ${isPostgres ? '$1' : '?'} WHERE id = ${isPostgres ? '$2' : '?'}`,
+        `UPDATE "orders" SET is_paid = true, paid_at = NOW(), payment_method = ${isPostgres ? '$1' : '?'} WHERE id = ${isPostgres ? '$2' : '?'}`,
         ['MockGateway', req.params.id]
       );
       res.json({ message: 'Order paid successfully' });
@@ -131,7 +131,7 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
 const getMyOrders = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
     const result = await db.query(
-      `SELECT * FROM orders WHERE user_id = ${isPostgres ? '$1' : '?'} ORDER BY created_at DESC`,
+      `SELECT * FROM "orders" WHERE user_id = ${isPostgres ? '$1' : '?'} ORDER BY created_at DESC`,
       [req.user.id]
     );
     res.json(isPostgres ? result.rows : result[0]);
@@ -145,9 +145,9 @@ const getMyOrders = asyncHandler(async (req, res) => {
 const getOrders = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
     const result = await db.query(`
-      SELECT o.*, u.username 
-      FROM orders o 
-      JOIN users u ON o.user_id = u.id
+      SELECT o.*, u.username
+      FROM "orders" o
+      JOIN "users" u ON o.user_id = u.id
       ORDER BY o.created_at DESC
     `);
     res.json(isPostgres ? result.rows : result[0]);
@@ -159,7 +159,7 @@ const getOrders = asyncHandler(async (req, res) => {
 const updateOrderToDelivered = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
     await db.query(
-      `UPDATE orders SET is_delivered = true, delivered_at = NOW() WHERE id = ${isPostgres ? '$1' : '?'}`,
+      `UPDATE "orders" SET is_delivered = true, delivered_at = NOW() WHERE id = ${isPostgres ? '$1' : '?'}`,
       [req.params.id]
     );
     res.json({ message: 'Order marked as delivered' });
