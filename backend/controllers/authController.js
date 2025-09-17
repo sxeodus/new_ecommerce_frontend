@@ -51,6 +51,8 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new Error('Please provide username, email, and password');
   }
 
+  const isPostgres = !!process.env.DATABASE_URL;
+
   // 3. Generate a salt and hash the password for secure storage.
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);

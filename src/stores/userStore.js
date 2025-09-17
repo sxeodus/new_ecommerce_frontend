@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 export const useUserStore = create((set) => ({
   users: [],
   loading: true,
@@ -11,7 +13,7 @@ export const useUserStore = create((set) => ({
     const { token } = useAuthStore.getState();
     set({ loading: true, error: null });
     try {
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch(`${API_URL}/api/admin/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -32,7 +34,7 @@ export const useUserStore = create((set) => ({
     }
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

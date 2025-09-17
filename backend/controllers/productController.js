@@ -108,7 +108,7 @@ const createProduct = asyncHandler(async (req, res) => {
     [
       name,
       price,
-      req.user.id, // Comes from 'protect' middleware
+      req.user.id,
       image || '/images/sample.jpg', // Default image
       brand,
       category,

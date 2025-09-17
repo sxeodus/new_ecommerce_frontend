@@ -58,9 +58,11 @@ const addOrderItems = asyncHandler(async (req, res) => {
       );
     }
     
-    const [newOrderResult] = isPostgres ? (await connection.query('SELECT * FROM orders WHERE id = $1', [orderId])).rows : (await connection.query('SELECT * FROM orders WHERE id = ?', [orderId]))[0];
+    const newOrderResult = await connection.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [orderId]);
+    const createdOrder = isPostgres ? newOrderResult.rows[0] : newOrderResult[0][0];
+
     await connection.commit();
-    res.status(201).json(newOrderResult);
+    res.status(201).json(createdOrder);
   } catch (error) {
     await connection.rollback();
     console.error('Error creating order:', error);
@@ -83,17 +85,19 @@ const getOrderById = asyncHandler(async (req, res) => {
       [req.params.id]
     );
 
+    const orders = isPostgres ? result.rows : result[0];
+
     if (orders.length > 0) {
       // Check if the user is an admin or the owner of the order
       if (orders[0].user_id !== req.user.id && !req.user.isAdmin) {
         res.status(403);
         throw new Error('Not authorized to view this order');
       }
-      const itemsResult = await db.query(
+      const itemsResult = await db.query( // This was correct, just formatting
         `SELECT * FROM order_items WHERE order_id = ${isPostgres ? '$1' : '?'}`,
         [req.params.id]
       );
-      res.json({ ...orders[0], orderItems: isPostgres ? itemsResult.rows : itemsResult[0] });
+      res.json({ ...orders[0], orderItems: isPostgres ? itemsResult.rows : itemsResult[0]});
     } else {
       res.status(404);
       throw new Error('Order not found');
@@ -105,12 +109,13 @@ const getOrderById = asyncHandler(async (req, res) => {
 // @access  Private
 const updateOrderToPaid = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
-    const { rows: orders } = await db.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [req.params.id]);
+    const result = await db.query(`SELECT * FROM orders WHERE id = ${isPostgres ? '$1' : '?'}`, [req.params.id]);
+    const orders = isPostgres ? result.rows : result[0];
 
     if (orders.length > 0) {
       // In a real app, you'd verify payment here
       await db.query(
-        `UPDATE orders SET is_paid = 1, paid_at = NOW(), payment_method = ${isPostgres ? '$1' : '?'} WHERE id = ${isPostgres ? '$2' : '?'}`,
+        `UPDATE orders SET is_paid = true, paid_at = NOW(), payment_method = ${isPostgres ? '$1' : '?'} WHERE id = ${isPostgres ? '$2' : '?'}`,
         ['MockGateway', req.params.id]
       );
       res.json({ message: 'Order paid successfully' });
@@ -125,11 +130,11 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
 // @access  Private
 const getMyOrders = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
-    const { rows: orders } = await db.query(
+    const result = await db.query(
       `SELECT * FROM orders WHERE user_id = ${isPostgres ? '$1' : '?'} ORDER BY created_at DESC`,
       [req.user.id]
     );
-    res.json(isPostgres ? orders : orders[0]);
+    res.json(isPostgres ? result.rows : result[0]);
 });
 
 // --- ADMIN CONTROLLERS ---
@@ -139,13 +144,13 @@ const getMyOrders = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const getOrders = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
-    const { rows: orders } = await db.query(`
+    const result = await db.query(`
       SELECT o.*, u.username 
       FROM orders o 
       JOIN users u ON o.user_id = u.id
       ORDER BY o.created_at DESC
     `);
-    res.json(isPostgres ? orders : orders[0]);
+    res.json(isPostgres ? result.rows : result[0]);
 });
 
 // @desc    Update order to delivered (Admin)
@@ -154,7 +159,7 @@ const getOrders = asyncHandler(async (req, res) => {
 const updateOrderToDelivered = asyncHandler(async (req, res) => {
     const isPostgres = !!process.env.DATABASE_URL;
     await db.query(
-      `UPDATE orders SET is_delivered = 1, delivered_at = NOW() WHERE id = ${isPostgres ? '$1' : '?'}`,
+      `UPDATE orders SET is_delivered = true, delivered_at = NOW() WHERE id = ${isPostgres ? '$1' : '?'}`,
       [req.params.id]
     );
     res.json({ message: 'Order marked as delivered' });

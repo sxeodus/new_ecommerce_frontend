@@ -44,27 +44,23 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     const updateValues = [];
 
     // Only add fields to the update query if they were provided in the request
-    if (req.body.username) {
-      updateFields.push('username = ?');
-      updateValues.push(req.body.username);
-    }
-    if (req.body.email) {
-      updateFields.push('email = ?');
-      updateValues.push(req.body.email);
-    }
-
     if (req.body.password) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(req.body.password, salt);
-      updateFields.push('password = ?');
+      updateFields.push(isPostgres ? `password = $${updateValues.length + 1}` : 'password = ?');
       updateValues.push(hashedPassword);
+    }
+    if (req.body.username) {
+      updateFields.push(isPostgres ? `username = $${updateValues.length + 1}` : 'username = ?');
+      updateValues.push(req.body.username);
+    }
+    if (req.body.email) {
+      updateFields.push(isPostgres ? `email = $${updateValues.length + 1}` : 'email = ?');
+      updateValues.push(req.body.email);
     }
 
     if (updateFields.length > 0) {
-      const setClauses = isPostgres
-        ? updateFields.map((field, i) => field.replace('?', `$${i + 1}`)).join(', ')
-        : updateFields.join(', ');
-      const sql = `UPDATE users SET ${setClauses} WHERE id = ${isPostgres ? `$${updateFields.length + 1}` : '?'}`;
+      const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ${isPostgres ? `$${updateFields.length + 1}` : '?'}`;
       await db.query(sql, [...updateValues, req.user.id]);
     }
 
@@ -102,9 +98,9 @@ export const deleteUser = asyncHandler(async (req, res) => {
 
   // Check if the user exists
   const result = await db.query(`SELECT * FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
-  const user = isPostgres ? result.rows : result[0];
+  const users = isPostgres ? result.rows : result[0];
 
-  if (user.length > 0) {
+  if (users.length > 0) {
     // Add logic here to handle related records if necessary (e.g., re-assign orders)
     // For now, we will just delete the user.
     await db.query(`DELETE FROM users WHERE id = ${isPostgres ? '$1' : '?'}`, [userId]);
