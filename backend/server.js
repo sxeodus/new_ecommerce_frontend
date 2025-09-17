@@ -1,4 +1,8 @@
 import path from 'path';
+import dotenv from 'dotenv';
+// Load environment variables at the very top
+dotenv.config();
+
 import express from 'express';
 import colors from 'colors';
 import cors from 'cors';
