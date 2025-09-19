@@ -39,19 +39,25 @@ const importData = async () => {
 
     // Insert new products
     console.log('Inserting 100 sample products...'.cyan);
-    const productValues = sampleProducts.map((p) => [
-      p.name,
-      p.image,
-      p.description,
-      p.brand,
-      p.category,
-      p.price,
-      p.count_in_stock,
-    ]);
+    const isPostgres = !!process.env.DATABASE_URL;
 
-    const sql =
-      'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ?';
-    await db.query(sql, [productValues]);
+    if (isPostgres) {
+      // PostgreSQL does not support the `VALUES ?` syntax for batch inserts with `pg`
+      for (const p of sampleProducts) {
+        await db.query(
+          'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [p.name, p.image, p.description, p.brand, p.category, p.price, p.count_in_stock]
+        );
+      }
+    } else {
+      // MySQL supports batch inserts
+      const productValues = sampleProducts.map((p) => [
+        p.name, p.image, p.description, p.brand, p.category, p.price, p.count_in_stock
+      ]);
+      const sql =
+        'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ?';
+      await db.query(sql, [productValues]);
+    }
 
     console.log('Data Imported Successfully!'.green.bold);
     process.exit();
