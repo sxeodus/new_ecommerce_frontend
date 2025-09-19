@@ -1,4 +1,5 @@
-import pool from './db.js';
+import fs from 'fs';
+import path from 'path';
 import db from './db.js'; // Use the improved, safer db module
 import colors from 'colors';
 
@@ -29,6 +30,23 @@ const sampleProducts = Array.from({ length: 100 }, (_, i) => {
 const importData = async () => {
   try {
     console.log('Starting data import...'.yellow.bold);
+    const isPostgres = !!process.env.DATABASE_URL;
+
+    // On Render (PostgreSQL), we need to create the schema first.
+    if (isPostgres) {
+      console.log('Running schema setup for PostgreSQL...'.cyan);
+      try {
+        const schemaPath = path.join(path.resolve(), 'backend', 'schema.sql');
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        // The 'pg' driver can execute multiple statements at once.
+        await db.query(schemaSql);
+        console.log('Schema created successfully.'.green);
+      } catch (schemaError) {
+        console.error(`Error creating schema: ${schemaError}`.red.inverse);
+        // Don't exit, maybe the schema already exists. Log and continue.
+        console.log('Continuing with data seeding...'.yellow);
+      }
+    }
 
     // Clear existing data
     console.log('Clearing existing products and order items...'.cyan);
@@ -39,7 +57,6 @@ const importData = async () => {
 
     // Insert new products
     console.log('Inserting 100 sample products...'.cyan);
-    const isPostgres = !!process.env.DATABASE_URL;
 
     if (isPostgres) {
       // PostgreSQL does not support the `VALUES ?` syntax for batch inserts with `pg`
