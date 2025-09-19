@@ -33,8 +33,8 @@ const importData = async () => {
     // Clear existing data
     console.log('Clearing existing products and order items...'.cyan);
     // We need to delete from order_items first due to foreign key constraints
-    await db.query('DELETE FROM order_items');
-    await db.query('DELETE FROM products');
+    await db.query('DELETE FROM "order_items"');
+    await db.query('DELETE FROM "products"');
     console.log('Existing data cleared.'.green);
 
     // Insert new products
@@ -45,7 +45,7 @@ const importData = async () => {
       // PostgreSQL does not support the `VALUES ?` syntax for batch inserts with `pg`
       for (const p of sampleProducts) {
         await db.query(
-          'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          'INSERT INTO "products" (name, image, description, brand, category, price, count_in_stock) VALUES ($1, $2, $3, $4, $5, $6, $7)',
           [p.name, p.image, p.description, p.brand, p.category, p.price, p.count_in_stock]
         );
       }
@@ -55,7 +55,7 @@ const importData = async () => {
         p.name, p.image, p.description, p.brand, p.category, p.price, p.count_in_stock
       ]);
       const sql =
-        'INSERT INTO products (name, image, description, brand, category, price, count_in_stock) VALUES ?';
+        'INSERT INTO "products" (name, image, description, brand, category, price, count_in_stock) VALUES ?';
       await db.query(sql, [productValues]);
     }
 
@@ -73,8 +73,8 @@ const destroyData = async () => {
 
     // Clear existing data
     console.log('Clearing existing products and order items...'.cyan);
-    await db.query('DELETE FROM order_items');
-    await db.query('DELETE FROM products');
+    await db.query('DELETE FROM "order_items"');
+    await db.query('DELETE FROM "products"');
     console.log('Data Destroyed Successfully!'.green.bold);
     process.exit();
   } catch (error) {
